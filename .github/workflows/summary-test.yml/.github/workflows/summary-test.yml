@@ -1,0 +1,17 @@
+name: summary-test
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: write summary then exit
+        run: |
+          echo "## SUMMARY TEST OK" >> $GITHUB_STEP_SUMMARY
+          echo "table test:" >> $GITHUB_STEP_SUMMARY
+          echo "| Kolom | Isi |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Pass | vps-test-1234 |" >> $GITHUB_STEP_SUMMARY
+          echo "done"
