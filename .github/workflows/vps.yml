@@ -100,13 +100,30 @@ jobs:
             echo "| User | \`runzz01\` |"
             echo "| Pass | \`$PASS\` |"
             echo ""
-            echo "> ⏰ URL Terminus **berganti tiap ±60 menit** (plan gratis). Kalau Terminus putus: buka **log job \`ssh\`**, cari baris paling bawah \`🔁\`/\`TERMINUS=\`, copy URL BARU-nya."
+            echo "> ⏰ URL Terminus **berganti tiap ±60 menit** (plan gratis). Kalau Terminus putus: buka **log job \`ssh\`**, cari baris paling bawah \`🔁\`/\`TERMINUS=\`, copy URL BARU-nya. **Solusi permanen:** setup Tailscale sekali → README bagian *Koneksi stabil tanpa putus*."
             echo ""
             echo "### Link Browser (gak pernah putus, tahan 6 jam):"
             echo "- Terminal web: \`$URL\`"
             echo "- SSH (butuh cloudflared): \`$H2\`"
             echo "- User: \`runzz01\` / Pass: \`$PASS\`"
-            [ -n "$TSIP" ] && echo "" && echo "### Tailscale IP: \`$TSIP\`"
+            if [ -n "$TSIP" ]; then
+              echo ""
+              echo "### 📡 Tailscale IP (gak pernah putus):"
+              echo ""
+              echo "| Kolom | Isi |"
+              echo "|---|---|"
+              echo "| Host | \`$TSIP\` |"
+              echo "| Port | \`22\` |"
+              echo "| User | \`runzz01\` |"
+              echo "| Pass | \`$PASS\` |"
+              echo ""
+              echo "> IP ini **tetap selama sesi** — pakai di Terminus, gak ganti-ganti."
+            else
+              echo ""
+              echo "### 📌 Tailscale belum aktif"
+              echo ""
+              echo "Mau IP \`100.x\` yang gak pernah putus? Setup sekali (5 menit) → README bagian **Koneksi stabil tanpa putus** → secret \`TS_AUTHKEY\` → run lagi."
+            fi
           } > /tmp/conn.md
           cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
 
