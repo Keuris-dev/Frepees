@@ -38,23 +38,18 @@ jobs:
           sudo mkdir -p /run/sshd
           echo 'runner:Vps12345!' | sudo chpasswd
           sudo /usr/sbin/sshd
-          (
-            while true; do
-              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -R 0:localhost:22 serveo.net 'sleep 540' 2>&1 | sed 's/\x1b\[[0-9;]*m//g' || true
-              sleep 2
-            done
-          ) > /tmp/serveo.log 2>&1 &
-          (
-            while true; do
-              sleep 60
-              P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}' || true)
-              echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
-            done
-          ) &
-          sleep 20
-          P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}' || true)
-          echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
-          echo "=========================================="
+          /tmp/cf tunnel --url ssh://localhost:22 > /tmp/cf2.log 2>&1 &
+          CF2_PID=$!
+          H2=""
+          for i in $(seq 1 40); do
+            H2=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf2.log | head -1 || true)
+            if [ -n "$H2" ]; then break; fi
+            sleep 1
+          done
+          echo "=== TERMUX SSH ==="
+          echo "HOST=${H2#https://}"
+          echo "=================="
+          if [ -z "$H2" ]; then echo "--- cf2.log ---"; cat /tmp/cf2.log || true; fi
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
 
