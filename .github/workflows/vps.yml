@@ -12,11 +12,10 @@ jobs:
       - name: open shell
         run: |
           set -e
-          PASS=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)
-          if [ -z "$PASS" ]; then PASS="R$(date +%s)zQ7"; fi
-          useradd -m -s /bin/bash runzz01 2>/dev/null || true
+          PASS="Az9.$(head -c 9 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          sudo useradd -m -s /bin/bash runzz01 2>/dev/null || true
           echo "runzz01:$PASS" | sudo chpasswd
-          usermod -aG sudo runzz01 2>/dev/null || true
+          sudo usermod -aG sudo runzz01 2>/dev/null || true
           echo 'runzz01 ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/runzz01 >/dev/null
           sudo mkdir -p /run/sshd
           sudo /usr/sbin/sshd
