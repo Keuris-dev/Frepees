@@ -38,13 +38,17 @@ jobs:
           sudo mkdir -p /run/sshd
           echo 'runner:Vps12345!' | sudo chpasswd
           sudo /usr/sbin/sshd
-          (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 0:localhost:22 serveo.net > /tmp/serveo.log 2>&1 &) || true
-          for i in $(seq 1 20); do
-            if grep -qiE 'Allocated port|ssh://' /tmp/serveo.log 2>/dev/null; then break; fi
-            sleep 3
-          done
-          echo "=== SSH ENDPOINT (buat Termux) ==="
-          cat /tmp/serveo.log || true
+          (
+            while true; do
+              echo "--- serveo cycle $(date +%T) ---"
+              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -R 0:localhost:22 serveo.net 'sleep 540' 2>&1 | sed 's/\x1b\[[0-9;]*m//g' || true
+              echo "cycle ended, respawn 3s"
+              sleep 3
+            done
+          ) > /tmp/serveo.log 2>&1 &
+          sleep 15
+          echo "=== SSH ENDPOINT TERBARU (buat Termux) ==="
+          grep -E 'Allocated port|Forwarding TCP' /tmp/serveo.log | tail -2 || true
           echo "=========================================="
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
