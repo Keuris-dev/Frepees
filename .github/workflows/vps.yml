@@ -12,7 +12,6 @@ jobs:
       - name: open shell
         run: |
           set -e
-          # password pendek + ada dash → gak di-mask GitHub
           R1=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
           R2=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
           PASS="vps${R1}-${R2}"
@@ -29,7 +28,7 @@ jobs:
             TSIP=$(tailscale ip -4 2>/dev/null | head -1 || true)
           else
             TSIP=""
-            echo ">> tailscale skip (no secret) — web terminal & SSH tunnel still work"
+            echo ">> tailscale skip (no secret) — web terminal tetap jalan"
           fi
 
           echo "=========================================="
@@ -40,9 +39,7 @@ jobs:
 
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
           curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          curl -sL https://github.com/ekzhang/bore/releases/latest/download/bore-v0.6.0-x86_64-unknown-linux-musl.tar.gz -o /tmp/bore.tar.gz
-          tar -xzf /tmp/bore.tar.gz -C /tmp bore
-          chmod +x /tmp/ttyd /tmp/cf /tmp/bore
+          chmod +x /tmp/ttyd /tmp/cf
 
           /tmp/ttyd -p 7681 -W -c "runzz01:$PASS" -u "$(id -u runzz01)" -g "$(id -g runzz01)" bash > /tmp/ttyd.log 2>&1 &
           sleep 2
@@ -51,11 +48,35 @@ jobs:
           CF_PID=$!
           /tmp/cf tunnel --url ssh://localhost:22 > /tmp/cf2.log 2>&1 &
           CF2_PID=$!
-          /tmp/bore local 22 --to bore.pub > /tmp/bore.log 2>&1 &
-          BORE_PID=$!
-          echo ">> bore started, waiting for port..."
 
-          URL=""; H2=""; BORE_PORT=""
+          # pinggy TCP tunnel buat Terminus — auto-restart (free: URL ganti tiap 60 menit)
+          (
+            while true; do
+              ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                  -o LogLevel=ERROR -o ConnectTimeout=10 -o ServerAliveInterval=15 \
+                  -o ExitOnForwardFailure=yes -T -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1 | \
+              while IFS= read -r line; do
+                echo "$line"
+                turl=$(printf '%s' "$line" | grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' || true)
+                if [ -n "$turl" ]; then
+                  echo "TERMINUS=$turl"
+                  printf '\n### 🔁 URL Terminus BARU (kalau putus, pakai ini)\n\n`%s`\n\nUser `runzz01` / Pass `%s`\n' "$turl" "$PASS" >> "$GITHUB_STEP_SUMMARY"
+                fi
+              done
+              echo ">> pinggy putus, reconnect dalam 3 detik..."
+              sleep 3
+            done
+          ) > /tmp/pinggy.log 2>&1 &
+
+          echo ">> pinggy tunnel starting, waiting for URL..."
+          TURL=""
+          for i in $(seq 1 30); do
+            TURL=$(grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' /tmp/pinggy.log 2>/dev/null | head -1 || true)
+            [ -n "$TURL" ] && break
+            sleep 1
+          done
+
+          URL=""; H2=""
           for i in $(seq 1 40); do
             if [ -z "$URL" ]; then
               URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)
@@ -63,40 +84,42 @@ jobs:
             if [ -z "$H2" ]; then
               H2=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf2.log | head -1 || true)
             fi
-            if [ -z "$BORE_PORT" ]; then
-              BORE_PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/bore.log | head -1 | cut -d: -f2 || true)
-            fi
-            if [ -n "$URL" ] && [ -n "$H2" ] && [ -n "$BORE_PORT" ]; then break; fi
+            if [ -n "$URL" ] && [ -n "$H2" ]; then break; fi
             sleep 1
           done
 
-          # fallback: kalau bore gagal, print log buat debug
-          if [ -z "$BORE_PORT" ]; then
-            echo ">> BORE FAILED, log:"
-            cat /tmp/bore.log || true
+          THOST=""; TPORT=""
+          if [ -n "$TURL" ]; then
+            THOST=$(printf '%s' "$TURL" | sed -E 's|^tcp://||; s|:[0-9]+$||')
+            TPORT=$(printf '%s' "$TURL" | sed -E 's|^.*:([0-9]+)$|\1|')
           fi
 
           {
             echo "## VPS Siap!"
             echo ""
-            if [ -n "$BORE_PORT" ]; then
+            if [ -n "$TURL" ]; then
               echo "### Terminus (HP):"
               echo "| Kolom | Isi |"
               echo "|---|---|"
-              echo "| Host | \`bore.pub\` |"
-              echo "| Port | \`$BORE_PORT\` |"
+              echo "| Host | \`$THOST\` |"
+              echo "| Port | \`$TPORT\` |"
               echo "| User | \`runzz01\` |"
               echo "| Pass | \`$PASS\` |"
               echo ""
+              echo "> ⏰ URL Terminus berganti tiap 60 menit (plan gratis). Kalau Terminus putus: **refresh halaman Summary ini** → copy URL TERBARU di bagian paling bawah."
+              echo ""
+            else
+              echo "> ⚠️ Tunnel Terminus gagal start. Pakai link Browser di bawah."
+              echo ""
             fi
-            echo "### Browser:"
+            echo "### Browser (gak pernah putus, tahan 6 jam):"
             echo "Link: $URL"
             echo "User: runzz01"
             echo "Pass: $PASS"
             [ -n "$TSIP" ] && echo "" && echo "### Tailscale IP: \`$TSIP\`"
           } >> $GITHUB_STEP_SUMMARY
 
-          echo "BORE=$BORE_PORT"
+          echo "TERMINUS=$TURL"
           echo "WEB=${URL#https://}"
           echo "USER=runzz01"
           echo "PASS=$PASS"
@@ -106,4 +129,6 @@ jobs:
 
       - name: cleanup
         if: always()
-        run: pkill -f '/tmp/ttyd' || true
+        run: |
+          pkill -f '/tmp/ttyd' || true
+          pkill -f 'free.pinggy.io' || true
