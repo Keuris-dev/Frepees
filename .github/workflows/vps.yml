@@ -47,12 +47,12 @@ jobs:
           (
             while true; do
               sleep 60
-              P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}')
+              P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}' || true)
               echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
             done
           ) &
           sleep 20
-          P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}')
+          P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}' || true)
           echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
           echo "=========================================="
           echo "tunnel up — holding sampai 6 jam"
