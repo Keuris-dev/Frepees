@@ -15,19 +15,32 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq tmate
           tmate -S /tmp/tmate.sock new-session -d -x 210 -y 50
-          sleep 4
+          SSH_CMD=""
+          for i in $(seq 1 30); do
+            SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -p '#{tmate_ssh}' 2>/dev/null || true)
+            if [ -n "$SSH_CMD" ]; then break; fi
+            sleep 1
+          done
           echo "=========================================="
           echo "SSH COMMAND (copy-paste di Termux):"
-          tmate -S /tmp/tmate.sock display-message -p '#{ssh}'
+          echo "$SSH_CMD"
           echo "=========================================="
-          tmate -S /tmp/tmate.sock wait-client
-          echo "client attached — holding session..."
-          while true; do
-            a=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}')
-            [ "$a" = "0" ] && break
-            sleep 15
+          if [ -z "$SSH_CMD" ]; then echo "tmate did not print ssh cmd"; exit 1; fi
+          SEEN=0
+          for i in $(seq 1 900); do
+            att=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
+            if [ "${att:-0}" -ge 1 ] 2>/dev/null; then SEEN=1; break; fi
+            sleep 1
           done
-          echo "session closed, runner exiting"
+          if [ "$SEEN" = 0 ]; then echo "no client in 15m, exiting"; exit 0; fi
+          echo "client connected — holding (grace 60s reconnect)"
+          G=0
+          while [ "$G" -lt 60 ]; do
+            att=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
+            if [ "${att:-0}" -ge 1 ] 2>/dev/null; then G=0; else G=$((G+1)); fi
+            sleep 1
+          done
+          echo "client gone — closing session"
 
       - name: cleanup
         if: always()
