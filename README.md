@@ -1,72 +1,111 @@
-# akal-vps — VPS gratis tanpa CC (GitHub Actions + tmate)
+# Frepees — VPS Gratis Tanpa CC (GitHub Actions)
 
-Runner GitHub = mesin beneran: **4 vCPU / 16 GB RAM (public repo)**, Ubuntu 24.04,
-git + python3 + node20 preinstalled, **no credit card**, public repo = menit unlimited.
+Runner GitHub = mesin beneran: **4 vCPU / 16 GB RAM**, Ubuntu 24.04,
+git + python3 + node20 preinstalled. **No credit card.** Public repo = menit unlimited.
 
-Sesi hidup maksimal **6 jam** per run (job timeout). Habis? klik Run workflow lagi —
-selama gak dihapus, repo ini = VPS lo on-demand 24/7 (cron juga bisa, lihat bawah).
+Sesi hidup maksimal **6 jam** per run. Habis? Klik Run workflow lagi —
+selama gak dihapus, repo ini = VPS lo on-demand 24/7.
 
-## setup (5 menit, sekali seumur hidup)
+## Cara Pakai (3 langkah)
 
-1. bikin akun github.com (email doang, no CC)
-2. bikin repo baru **Public** → nama bebas (`vps`)
-3. upload isi folder ini ke repo (Add file → Upload files → drag seluruh isi `akal-vps/`,
-   termasuk folder `.github/`)
-4. tab **Actions** → pilih workflow **vps** → **Run workflow**
-5. tunggu ~30 detik → buka log job → muncul baris:
-   ```
-   SSH COMMAND (copy-paste di Termux):
-   ssh session=...,fingerprint=... @fr1.tmate.io ...
-   ```
-6. paste di Termux → lo udah masuk shell Ubuntu 16GB, root-nya `runner`, sudo available
+### 1. Fork repo ini
 
-## bawa tools lo masuk
+Klik tombol **Fork** di pojok kanan atas halaman ini.
 
-Folder repo ke-load otomatis pas checkout. Supaya `cuan/` + `nhbot/` ikut:
+### 2. Run workflow
 
+- Buka tab **Actions** di repo fork lo
+- Klik workflow **vps** di menu kiri
+- Klik tombol **Run workflow** (warna hijau) → pilih branch `main` → klik **Run workflow**
+
+### 3. Ambil kredensial
+
+Tunggu ~40 detik. Buka halaman **Summary** run yang baru selesai. Muncul tabel:
+
+```
+## VPS Siap!
+
+### Terminus (HP):
+| Kolom | Isi |
+|---|---|
+| Host | bore.pub |
+| Port | 12345 |
+| User | runzz01 |
+| Pass | Az9.xxxxxxxx |
+```
+
+**Copy 4 kolom itu.**
+
+### 4. Masuk via Terminus
+
+Buka app **Terminus** di HP → buka session baru → isi:
+
+| Kolom | Isi |
+|---|---|
+| Host | `bore.pub` |
+| Port | (angka dari Summary) |
+| User | `runzz01` |
+| Password | (dari Summary) |
+
+Klik connect. **Lo udah masuk VPS Ubuntu 16GB.** sudo tersedia.
+
+---
+
+## Alternatif: Browser (gak perlu Terminus)
+
+Dari Summary, ada juga link browser:
+```
+https://xxxx.trycloudflare.com  (user runzz01 / pass Az9.xxxx)
+```
+Buka di browser → langsung masuk terminal di HP/laptop.
+
+---
+
+## Tools yang udah terpasang
+
+- git, python3, node20, pip
+- sudo (passwordless)
+
+Clone repo lo sendiri atau install tools:
 ```bash
-# di repo lo, drag-upload juga folder cuan/ dan nhbot/ (atau push via git)
-# habis SSH masuk:
-python3 nhbot/nh.py search "yuri" --limit 5     # jalan langsung
-node cuan/spread.mjs --test
-./cuan/short.sh https://tujuan.com
+git clone https://github.com/LO/REPO.git
+pip install requests beautifulsoup4
+npm install -g ts-node typescript
 ```
 
-atau clone repo lain: `git clone https://github.com/LO/REPO.git`
+---
 
-## mode cron (gak perlu SSH)
+## Yang ada di repo ini
 
-Actions jalan tanpa login — tambah workflow sendiri, contoh spread harian:
+- `.github/workflows/vps.yml` — workflow utama
+- `cuan/` — toolkit shortlink + auto-poster
+- `nhbot/` — scraper nhentai (Python)
 
-```yaml
-# .github/workflows/daily-spread.yml
-name: daily-spread
-on:
-  schedule: [{cron: "0 9,15,21 * * *"}]   # UTC = WIB-7 → 16:00,22:00,04:00
-  workflow_dispatch:
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: {node-version: 20}
-      - run: node cuan/spread.mjs "pesan di sini {link}" "$SHORTLINK"
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-```
+---
 
-## alternatif persistent (no CC)
+## Catatan Penting
 
-- **vpswala.org** — 2GB ARM selamanya, verifikasi pakai akun GitHub (no card),
-  SSH root masuk email. Kecil tapi 24/7 beneran.
-- **glitch.com** — 512MB, web terminal, no CC.
-- **serv00.com** — shell FreeBSD always-on, tapi butuh invite code.
+- **Jangan mining / abuse** → repo kena ban.
+- Public repo = menit unlimited. Private = 2000 menit/bulan.
+- Password **random tiap run** — kalau lupa, lihat lagi di Summary.
+- Sesi max **6 jam**. Kalau butuh lebih lama, run lagi.
+- File di repo ini **publik** — API key jangan commit, pakai **Settings → Secrets**.
 
-## catatan
+---
 
-- jangan dipake mining / abuse → repo kena ban.
-- public repo = menit unlimited; private = 2000 menit/bulan (cukup ~5 sesi/bulan).
-- file yang lo taruh di repo (`cuan/`, `nhbot/`) kelihatan publik — API key jangan
-  commit, taruh di GitHub **Settings → Secrets** (`${{ secrets.KEY }}`).
+## FAQ
+
+**Q: Kok gak bisa connect?**
+A: Tunggu sampe Summary muncul (bore butuh ~30-40 detik). Kalau udah lewat 1 menit dan gak muncul, cancel run → run lagi.
+
+**Q: Password-nya mana?**
+A: Di **Summary** run (bukan di log). Random tiap run.
+
+**Q: Bisa akses dari laptop?**
+A: Boleh. Host `bore.pub`, port sama, user & password sama.
+
+**Q: Kok run-nya aneh / error?**
+A: Cek tab **Summary** — biasanya ada info error di situ. Kalau kosong, run lagi.
+
+**Q: Gua mau setup sendiri di repo gua?**
+A: Fork → Settings → Secrets and variables → Actions → **New repository secret** → Name: `TS_AUTHKEY`, Value: authkey dari tailscale.com. Abis itu run → tailscale IP muncul di Summary.
