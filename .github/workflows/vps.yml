@@ -15,9 +15,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq tmate
           tmate -S /tmp/tmate.sock new-session -d -x 210 -y 50
+          sleep 2
+          echo "--- tmate debug ---"
+          tmate -S /tmp/tmate.sock list-sessions || true
+          tmate -S /tmp/tmate.sock display-message -p "name=#{session_name} ssh=[#{tmate_ssh}] web=[#{tmate_web}] legacy=[#{ssh}]" || true
+          echo "--------------------"
           SSH_CMD=""
-          for i in $(seq 1 30); do
-            SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -p '#{tmate_ssh}' 2>/dev/null || true)
+          for i in $(seq 1 60); do
+            SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_ssh}' 2>/dev/null || true)
+            if [ -z "$SSH_CMD" ]; then
+              SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_web}' 2>/dev/null || true)
+            fi
             if [ -n "$SSH_CMD" ]; then break; fi
             sleep 1
           done
