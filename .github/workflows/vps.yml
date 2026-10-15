@@ -12,43 +12,66 @@ jobs:
       - name: open shell
         run: |
           set -e
+          MODE=none
           sudo apt-get update -qq
-          sudo apt-get install -y -qq tmate
-          tmate -S /tmp/tmate.sock new-session -d -x 210 -y 50
-          sleep 2
-          echo "--- tmate debug ---"
-          tmate -S /tmp/tmate.sock list-sessions || true
-          tmate -S /tmp/tmate.sock display-message -p "name=#{session_name} ssh=[#{tmate_ssh}] web=[#{tmate_web}] legacy=[#{ssh}]" || true
-          echo "--------------------"
+          sudo apt-get install -y -qq tmate curl openssh-server
+          curl -fsSL -o /tmp/tmate https://github.com/tmate-io/tmate/releases/download/2.4.0/tmate-2.4.0-static-linux-amd64 || true
+          TM=tmate
+          if [ -s /tmp/tmate ] && head -c4 /tmp/tmate | grep -q ELF; then chmod +x /tmp/tmate; TM=/tmp/tmate; fi
+          echo "tmate bin: $TM"
+          $TM -S /tmp/tmate.sock new-session -d -x 210 -y 50 || true
+          sleep 3
+          echo "--- tmate messages ---"
+          $TM -S /tmp/tmate.sock show-messages 2>&1 | tail -20 || true
           SSH_CMD=""
-          for i in $(seq 1 60); do
-            SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_ssh}' 2>/dev/null || true)
-            if [ -z "$SSH_CMD" ]; then
-              SSH_CMD=$(tmate -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_web}' 2>/dev/null || true)
-            fi
+          for i in $(seq 1 45); do
+            SSH_CMD=$($TM -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_ssh}' 2>/dev/null || true)
+            if [ -n "$SSH_CMD" ]; then break; fi
+            SSH_CMD=$($TM -S /tmp/tmate.sock display-message -t 0 -p '#{tmate_web}' 2>/dev/null || true)
             if [ -n "$SSH_CMD" ]; then break; fi
             sleep 1
           done
+          if [ -n "$SSH_CMD" ]; then MODE=tmate; fi
+          if [ "$MODE" = "none" ]; then
+            echo "tmate relay mati — fallback reverse tunnel"
+            sudo mkdir -p /run/sshd
+            echo 'runner:Vps12345!' | sudo chpasswd
+            sudo /usr/sbin/sshd
+            (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 2222:localhost:22 serveo.net > /tmp/serveo.log 2>&1 &) || true
+            (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 0:localhost:22 nokey@localhost.run > /tmp/lr.log 2>&1 &) || true
+            for i in $(seq 1 15); do
+              if grep -qiE 'port [0-9]+|ssh -p|ssh://|Connect to' /tmp/serveo.log /tmp/lr.log 2>/dev/null; then break; fi
+              sleep 4
+            done
+            echo "=== serveo.log ==="
+            cat /tmp/serveo.log || true
+            echo "=== localhost.run.log ==="
+            cat /tmp/lr.log || true
+          fi
           echo "=========================================="
           echo "SSH COMMAND (copy-paste di Termux):"
           echo "$SSH_CMD"
           echo "=========================================="
-          if [ -z "$SSH_CMD" ]; then echo "tmate did not print ssh cmd"; exit 1; fi
-          SEEN=0
-          for i in $(seq 1 900); do
-            att=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
-            if [ "${att:-0}" -ge 1 ] 2>/dev/null; then SEEN=1; break; fi
-            sleep 1
-          done
-          if [ "$SEEN" = 0 ]; then echo "no client in 15m, exiting"; exit 0; fi
-          echo "client connected — holding (grace 60s reconnect)"
-          G=0
-          while [ "$G" -lt 60 ]; do
-            att=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
-            if [ "${att:-0}" -ge 1 ] 2>/dev/null; then G=0; else G=$((G+1)); fi
-            sleep 1
-          done
-          echo "client gone — closing session"
+          if [ "$MODE" = "tmate" ]; then
+            SEEN=0
+            for i in $(seq 1 900); do
+              att=$($TM -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
+              if [ "${att:-0}" -ge 1 ] 2>/dev/null; then SEEN=1; break; fi
+              sleep 1
+            done
+            if [ "$SEEN" = 0 ]; then echo "no client in 15m"; exit 0; fi
+            echo "client connected — holding (grace 60s reconnect)"
+            G=0
+            while [ "$G" -lt 60 ]; do
+              att=$($TM -S /tmp/tmate.sock display-message -p '#{session_attached}' 2>/dev/null || echo 0)
+              if [ "${att:-0}" -ge 1 ] 2>/dev/null; then G=0; else G=$((G+1)); fi
+              sleep 1
+            done
+            echo "client gone — closing"
+          else
+            echo "tunnel mode — holding (6h max)"
+            sleep 21000
+          fi
 
       - name: cleanup
         if: always()
