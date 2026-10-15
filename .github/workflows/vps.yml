@@ -38,15 +38,18 @@ jobs:
             echo 'runner:Vps12345!' | sudo chpasswd
             sudo /usr/sbin/sshd
             (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 2222:localhost:22 serveo.net > /tmp/serveo.log 2>&1 &) || true
-            (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 0:localhost:22 nokey@localhost.run > /tmp/lr.log 2>&1 &) || true
+            (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 2222:localhost:22 nokey@localhost.run > /tmp/lr.log 2>&1 &) || true
+            (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 80:localhost:22 ssh.pinggy.io > /tmp/pinggy.log 2>&1 &) || true
             for i in $(seq 1 15); do
-              if grep -qiE 'port [0-9]+|ssh -p|ssh://|Connect to' /tmp/serveo.log /tmp/lr.log 2>/dev/null; then break; fi
+              if grep -qiE 'port [0-9]+|ssh -p|ssh://|Connect to|Allocated' /tmp/serveo.log /tmp/lr.log /tmp/pinggy.log 2>/dev/null; then break; fi
               sleep 4
             done
             echo "=== serveo.log ==="
             cat /tmp/serveo.log || true
             echo "=== localhost.run.log ==="
             cat /tmp/lr.log || true
+            echo "=== pinggy.log ==="
+            cat /tmp/pinggy.log || true
           fi
           echo "=========================================="
           echo "SSH COMMAND (copy-paste di Termux):"
