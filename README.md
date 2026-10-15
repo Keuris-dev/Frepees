@@ -16,48 +16,42 @@ Klik tombol **Fork** di pojok kanan atas halaman ini.
 
 - Buka tab **Actions** di repo fork lo
 - Klik workflow **vps** di menu kiri
-- Klik tombol **Run workflow** (warna hijau) → pilih branch `main` → klik **Run workflow**
+- Klik tombol **Run workflow** (hijau) → pilih branch `main` → klik **Run workflow**
 
 ### 3. Ambil kredensial
 
-Tunggu ~40 detik. Buka halaman **Summary** run yang baru selesai. Muncul tabel:
+Tunggu ~40 detik. Buka halaman **Summary** run-nya. Muncul:
 
 ```
-## VPS Siap!
-
 ### Terminus (HP):
 | Kolom | Isi |
 |---|---|
-| Host | bore.pub |
-| Port | 12345 |
+| Host | qoako-132-196-20-107.run.pinggy-free.link |
+| Port | 38255 |
 | User | runzz01 |
-| Pass | Az9.xxxxxxxx |
+| Pass | vpsXXXX-XXXX |
 ```
 
 **Copy 4 kolom itu.**
 
 ### 4. Masuk via Terminus
 
-Buka app **Terminus** di HP → buka session baru → isi:
+Buka **Terminus** → session baru → isi Host/Port/User/Pass dari Summary → Connect.
 
-| Kolom | Isi |
-|---|---|
-| Host | `bore.pub` |
-| Port | (angka dari Summary) |
-| User | `runzz01` |
-| Password | (dari Summary) |
-
-Klik connect. **Lo udah masuk VPS Ubuntu 16GB.** sudo tersedia.
+⚠️ **URL Terminus berganti tiap 60 menit** (layanan gratis). Kalau putus:
+refresh halaman Summary → copy **URL TERBARU** di bagian paling bawah (`🔁 URL Terminus BARU`).
 
 ---
 
-## Alternatif: Browser (gak perlu Terminus)
+## Alternatif: Browser (gak pernah putus)
 
-Dari Summary, ada juga link browser:
+Di Summary yang sama ada juga link browser:
 ```
-https://xxxx.trycloudflare.com  (user runzz01 / pass Az9.xxxx)
+Link: https://xxxx.trycloudflare.com
+User: runzz01
+Pass: vpsXXXX-XXXX
 ```
-Buka di browser → langsung masuk terminal di HP/laptop.
+Buka di browser → terminal langsung muncul. **Tahan full 6 jam**, gak ganti-ganti.
 
 ---
 
@@ -66,7 +60,6 @@ Buka di browser → langsung masuk terminal di HP/laptop.
 - git, python3, node20, pip
 - sudo (passwordless)
 
-Clone repo lo sendiri atau install tools:
 ```bash
 git clone https://github.com/LO/REPO.git
 pip install requests beautifulsoup4
@@ -87,25 +80,25 @@ npm install -g ts-node typescript
 
 - **Jangan mining / abuse** → repo kena ban.
 - Public repo = menit unlimited. Private = 2000 menit/bulan.
-- Password **random tiap run** — kalau lupa, lihat lagi di Summary.
-- Sesi max **6 jam**. Kalau butuh lebih lama, run lagi.
+- Password **random tiap run** — lupa? lihat lagi di Summary.
+- Sesi max **6 jam**. Butuh lebih? run lagi.
 - File di repo ini **publik** — API key jangan commit, pakai **Settings → Secrets**.
 
 ---
 
 ## FAQ
 
-**Q: Kok gak bisa connect?**
-A: Tunggu sampe Summary muncul (bore butuh ~30-40 detik). Kalau udah lewat 1 menit dan gak muncul, cancel run → run lagi.
+**Q: Terminus connection failed?**
+A: Tunggu Summary muncul (~40 detik) dulu sebelum connect. Kalau tetep gagal: URL mungkin udah lewat 60 menit → refresh Summary, pakai URL terbaru. Alternatif: pakai link Browser.
 
 **Q: Password-nya mana?**
 A: Di **Summary** run (bukan di log). Random tiap run.
 
 **Q: Bisa akses dari laptop?**
-A: Boleh. Host `bore.pub`, port sama, user & password sama.
+A: Boleh. Host/port/user/password sama, masuk via SSH client biasa.
 
-**Q: Kok run-nya aneh / error?**
-A: Cek tab **Summary** — biasanya ada info error di situ. Kalau kosong, run lagi.
+**Q: Run-nya error?**
+A: Cek tab **Summary** — kalau kosong, cancel → run lagi.
 
 **Q: Gua mau setup sendiri di repo gua?**
-A: Fork → Settings → Secrets and variables → Actions → **New repository secret** → Name: `TS_AUTHKEY`, Value: authkey dari tailscale.com. Abis itu run → tailscale IP muncul di Summary.
+A: Fork → Settings → Secrets and variables → Actions → **New repository secret** → Name: `TS_AUTHKEY`, Value: authkey dari tailscale.com. Abis itu run → tailscale IP muncul di Summary (direct IP, tanpa tunnel).
