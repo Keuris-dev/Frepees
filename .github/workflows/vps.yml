@@ -35,6 +35,17 @@ jobs:
             echo "--- ttyd.log ---"; cat /tmp/ttyd.log || true
             exit 1
           fi
+          sudo mkdir -p /run/sshd
+          echo 'runner:Vps12345!' | sudo chpasswd
+          sudo /usr/sbin/sshd
+          (ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes -N -R 0:localhost:22 serveo.net > /tmp/serveo.log 2>&1 &) || true
+          for i in $(seq 1 20); do
+            if grep -qiE 'Allocated port|ssh://' /tmp/serveo.log 2>/dev/null; then break; fi
+            sleep 3
+          done
+          echo "=== SSH ENDPOINT (buat Termux) ==="
+          cat /tmp/serveo.log || true
+          echo "=========================================="
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
 
