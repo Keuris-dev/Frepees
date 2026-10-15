@@ -40,15 +40,20 @@ jobs:
           sudo /usr/sbin/sshd
           (
             while true; do
-              echo "--- serveo cycle $(date +%T) ---"
               ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -R 0:localhost:22 serveo.net 'sleep 540' 2>&1 | sed 's/\x1b\[[0-9;]*m//g' || true
-              echo "cycle ended, respawn 3s"
-              sleep 3
+              sleep 2
             done
           ) > /tmp/serveo.log 2>&1 &
-          sleep 15
-          echo "=== SSH ENDPOINT TERBARU (buat Termux) ==="
-          grep -E 'Allocated port|Forwarding TCP' /tmp/serveo.log | tail -2 || true
+          (
+            while true; do
+              sleep 60
+              P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}')
+              echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
+            done
+          ) &
+          sleep 20
+          P=$(grep 'Allocated port' /tmp/serveo.log | tail -1 | grep -oE '[0-9]{4,5}')
+          echo "SSH-NOW: ssh -p $P runner@serveousercontent.com  (pass: Vps12345!)"
           echo "=========================================="
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
