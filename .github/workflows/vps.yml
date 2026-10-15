@@ -19,9 +19,13 @@ jobs:
           echo 'runzz01 ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/runzz01 >/dev/null
           sudo mkdir -p /run/sshd
           sudo /usr/sbin/sshd
+          curl -fsSL https://tailscale.com/install.sh | sh || true
+          sudo tailscale up --authkey="${{ secrets.TS_AUTHKEY }}" --hostname="runzz$(date +%s | tail -c 6)" --accept-dns=false || true
+          TSIP=$(tailscale ip -4 2>/dev/null | head -1 || true)
           echo "=========================================="
           echo "PASSWORD=$PASS"
           echo "USER=runzz01"
+          echo "TSIP=$TSIP"
           echo "=========================================="
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
           curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
