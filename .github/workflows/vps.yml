@@ -12,44 +12,40 @@ jobs:
       - name: open shell
         run: |
           set -e
+          PASS=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)
+          if [ -z "$PASS" ]; then PASS="R$(date +%s)zQ7"; fi
+          useradd -m -s /bin/bash runzz01 2>/dev/null || true
+          echo "runzz01:$PASS" | sudo chpasswd
+          usermod -aG sudo runzz01 2>/dev/null || true
+          echo 'runzz01 ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/runzz01 >/dev/null
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd
+          echo "=========================================="
+          echo "PASSWORD=$PASS"
+          echo "USER=runzz01"
+          echo "=========================================="
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
           curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x /tmp/ttyd /tmp/cf
-          /tmp/ttyd -p 7681 -W -c runner:Vps12345! bash > /tmp/ttyd.log 2>&1 &
+          /tmp/ttyd -p 7681 -W -c "runzz01:$PASS" -u "$(id -u runzz01)" -g "$(id -g runzz01)" bash > /tmp/ttyd.log 2>&1 &
           sleep 2
           /tmp/cf tunnel --url http://localhost:7681 > /tmp/cf.log 2>&1 &
           CF_PID=$!
-          URL=""
-          for i in $(seq 1 40); do
-            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)
-            if [ -n "$URL" ]; then break; fi
-            sleep 1
-          done
-          echo "=========================================="
-          echo "TERMINAL (buka di browser HP):"
-          echo "$URL"
-          echo "user: runner   pass: Vps12345!"
-          echo "=========================================="
-          if [ -z "$URL" ]; then
-            echo "--- cf.log ---"; cat /tmp/cf.log || true
-            echo "--- ttyd.log ---"; cat /tmp/ttyd.log || true
-            exit 1
-          fi
-          sudo mkdir -p /run/sshd
-          echo 'runner:Vps12345!' | sudo chpasswd
-          sudo /usr/sbin/sshd
           /tmp/cf tunnel --url ssh://localhost:22 > /tmp/cf2.log 2>&1 &
           CF2_PID=$!
-          H2=""
+          URL=""; H2=""
           for i in $(seq 1 40); do
-            H2=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf2.log | head -1 || true)
-            if [ -n "$H2" ]; then break; fi
+            if [ -z "$URL" ]; then
+              URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)
+            fi
+            if [ -z "$H2" ]; then
+              H2=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf2.log | head -1 || true)
+            fi
+            if [ -n "$URL" ] && [ -n "$H2" ]; then break; fi
             sleep 1
           done
-          echo "=== TERMUX SSH ==="
-          echo "HOST=${H2#https://}"
-          echo "=================="
-          if [ -z "$H2" ]; then echo "--- cf2.log ---"; cat /tmp/cf2.log || true; fi
+          echo "WEB=${URL#https://}  (user runzz01 / pass $PASS)"
+          echo "SSHHOST=${H2#https://}"
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
 
