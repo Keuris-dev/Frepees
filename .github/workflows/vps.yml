@@ -7,9 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
-
-      - name: open shell
+      - name: setup
         run: |
           set -e
           R1=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
@@ -31,42 +29,38 @@ jobs:
             echo ">> tailscale skip (no secret) — web terminal tetap jalan"
           fi
 
-          echo "=========================================="
-          echo "PASS=$PASS"
-          echo "USER=runzz01"
-          echo "TSIP=$TSIP"
-          echo "=========================================="
-
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
           curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x /tmp/ttyd /tmp/cf
 
-          /tmp/ttyd -p 7681 -W -c "runzz01:$PASS" -u "$(id -u runzz01)" -g "$(id -g runzz01)" bash > /tmp/ttyd.log 2>&1 &
+          touch /tmp/ttyd.log /tmp/cf.log /tmp/cf2.log /tmp/pinggy.log
+
+          setsid nohup /tmp/ttyd -p 7681 -W -c "runzz01:$PASS" -u "$(id -u runzz01)" -g "$(id -g runzz01)" bash > /tmp/ttyd.log 2>&1 &
           sleep 2
 
-          /tmp/cf tunnel --url http://localhost:7681 > /tmp/cf.log 2>&1 &
-          CF_PID=$!
-          /tmp/cf tunnel --url ssh://localhost:22 > /tmp/cf2.log 2>&1 &
-          CF2_PID=$!
+          setsid nohup /tmp/cf tunnel --url http://localhost:7681 > /tmp/cf.log 2>&1 &
+          echo $! > /tmp/main.pid
+          setsid nohup /tmp/cf tunnel --url ssh://localhost:22 > /tmp/cf2.log 2>&1 &
+          echo $! > /tmp/main2.pid
 
           # pinggy TCP tunnel buat Terminus — auto-restart (free: URL ganti tiap 60 menit)
-          (
+          setsid nohup bash -c '
             while true; do
               ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
                   -o LogLevel=ERROR -o ConnectTimeout=10 -o ServerAliveInterval=15 \
                   -o ExitOnForwardFailure=yes -T -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1 | \
               while IFS= read -r line; do
                 echo "$line"
-                turl=$(printf '%s' "$line" | grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' || true)
+                turl=$(printf "%s" "$line" | grep -oE "tcp://[A-Za-z0-9.-]+:[0-9]+" || true)
                 if [ -n "$turl" ]; then
                   echo "TERMINUS=$turl"
-                  printf '\n### 🔁 URL Terminus BARU (kalau putus, pakai ini)\n\n`%s`\n\nUser `runzz01` / Pass `%s`\n' "$turl" "$PASS" >> "$GITHUB_STEP_SUMMARY"
+                  printf "\n### 🔁 URL Terminus BARU (kalau putus, pakai ini)\n\n\`%s\`\n\nUser \`runzz01\` / Pass \`%s\`\n" "$turl" "'"$PASS"'" >> "$GITHUB_STEP_SUMMARY"
                 fi
               done
               echo ">> pinggy putus, reconnect dalam 3 detik..."
               sleep 3
             done
-          ) > /tmp/pinggy.log 2>&1 &
+          ' </dev/null >> /tmp/pinggy.log 2>&1 &
 
           echo ">> pinggy tunnel starting, waiting for URL..."
           TURL=""
@@ -95,40 +89,78 @@ jobs:
           fi
 
           {
-            echo "## VPS Siap!"
+            echo "## 🖥️ VPS Siap!"
             echo ""
-            if [ -n "$TURL" ]; then
-              echo "### Terminus (HP):"
-              echo "| Kolom | Isi |"
-              echo "|---|---|"
-              echo "| Host | \`$THOST\` |"
-              echo "| Port | \`$TPORT\` |"
-              echo "| User | \`runzz01\` |"
-              echo "| Pass | \`$PASS\` |"
-              echo ""
-              echo "> ⏰ URL Terminus berganti tiap 60 menit (plan gratis). Kalau Terminus putus: **refresh halaman Summary ini** → copy URL TERBARU di bagian paling bawah."
-              echo ""
-            else
-              echo "> ⚠️ Tunnel Terminus gagal start. Pakai link Browser di bawah."
-              echo ""
-            fi
-            echo "### Browser (gak pernah putus, tahan 6 jam):"
-            echo "Link: $URL"
-            echo "User: runzz01"
-            echo "Pass: $PASS"
+            echo "Buka **Terminus** (HP) → New Host → isi kolom ini:"
+            echo ""
+            echo "| Kolom | Isi |"
+            echo "|---|---|"
+            echo "| Host | \`$THOST\` |"
+            echo "| Port | \`$TPORT\` |"
+            echo "| User | \`runzz01\` |"
+            echo "| Pass | \`$PASS\` |"
+            echo ""
+            echo "> ⏰ URL Terminus **berganti tiap ±60 menit** (plan gratis). Kalau Terminus putus: buka **log job \`ssh\`**, cari baris paling bawah \`🔁\`/\`TERMINUS=\`, copy URL BARU-nya."
+            echo ""
+            echo "### Link Browser (gak pernah putus, tahan 6 jam):"
+            echo "- Terminal web: \`$URL\`"
+            echo "- SSH (butuh cloudflared): \`$H2\`"
+            echo "- User: \`runzz01\` / Pass: \`$PASS\`"
             [ -n "$TSIP" ] && echo "" && echo "### Tailscale IP: \`$TSIP\`"
-          } >> $GITHUB_STEP_SUMMARY
+          } > /tmp/conn.md
+          cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
 
-          echo "TERMINUS=$TURL"
-          echo "WEB=${URL#https://}"
+          echo "################################################"
+          echo "# VPS SIAP — SALIN DARI SINI"
           echo "USER=runzz01"
           echo "PASS=$PASS"
-          echo "SSHHOST=${H2#https://}"
-          echo "tunnel up — holding sampai 6 jam"
-          wait $CF_PID
+          echo "TERMINUS=$TURL"
+          echo "WEB=$URL"
+          echo "SSHHOST=$H2"
+          echo "TSIP=$TSIP"
+          echo "################################################"
+
+      - name: publish info
+        uses: actions/upload-artifact@v4
+        with:
+          name: conn
+          path: /tmp/conn.md
+          if-no-files-found: error
+
+      - name: hold
+        run: |
+          echo ">> hold: nonton log pinggy live (URL baru muncul di sini)"
+          tail -n +1 -f /tmp/pinggy.log &
+          TAILPID=$!
+          while kill -0 "$(cat /tmp/main.pid 2>/dev/null)" 2>/dev/null; do
+            sleep 10
+          done
+          echo ">> cloudflared mati — session berakhir"
+          kill $TAILPID 2>/dev/null || true
 
       - name: cleanup
         if: always()
         run: |
           pkill -f '/tmp/ttyd' || true
           pkill -f 'free.pinggy.io' || true
+
+  display:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: fetch info and publish summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N=0
+          for i in $(seq 1 60); do
+            N=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.total_count' 2>/dev/null || echo 0)
+            [ "${N:-0}" -gt 0 ] && break
+            sleep 6
+          done
+          gh run download "$GITHUB_RUN_ID" -n conn -D "$RUNNER_TEMP/conn" -R "$GITHUB_REPOSITORY" 2>/dev/null || true
+          if [ -f "$RUNNER_TEMP/conn/conn.md" ]; then
+            cat "$RUNNER_TEMP/conn/conn.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Info koneksi belum siap — tunggu ±1 menit lalu **refresh halaman Summary ini**." >> "$GITHUB_STEP_SUMMARY"
+          fi
