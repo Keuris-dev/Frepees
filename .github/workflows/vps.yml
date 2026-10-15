@@ -1,0 +1,34 @@
+name: vps
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: open shell
+        run: |
+          set -e
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tmate
+          tmate -S /tmp/tmate.sock new-session -d -x 210 -y 50
+          sleep 4
+          echo "=========================================="
+          echo "SSH COMMAND (copy-paste di Termux):"
+          tmate -S /tmp/tmate.sock display-message -p '#{ssh}'
+          echo "=========================================="
+          tmate -S /tmp/tmate.sock wait-client
+          echo "client attached — holding session..."
+          while true; do
+            a=$(tmate -S /tmp/tmate.sock display-message -p '#{session_attached}')
+            [ "$a" = "0" ] && break
+            sleep 15
+          done
+          echo "session closed, runner exiting"
+
+      - name: cleanup
+        if: always()
+        run: rm -f /tmp/tmate.sock || true
