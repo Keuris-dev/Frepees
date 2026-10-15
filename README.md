@@ -20,10 +20,9 @@ Klik tombol **Fork** di pojok kanan atas halaman ini.
 
 ### 3. Ambil kredensial
 
-Tunggu ~40 detik. Buka halaman **Summary** run-nya. Muncul:
+Tunggu **±1 menit** (job `display` harus selesai dulu). Buka halaman **Summary** run-nya → muncul:
 
 ```
-### Terminus (HP):
 | Kolom | Isi |
 |---|---|
 | Host | qoako-132-196-20-107.run.pinggy-free.link |
@@ -32,14 +31,15 @@ Tunggu ~40 detik. Buka halaman **Summary** run-nya. Muncul:
 | Pass | vpsXXXX-XXXX |
 ```
 
-**Copy 4 kolom itu.**
+**Copy 4 kolom itu.** (Kosong? tunggu sebentar → refresh.)
 
 ### 4. Masuk via Terminus
 
 Buka **Terminus** → session baru → isi Host/Port/User/Pass dari Summary → Connect.
 
-⚠️ **URL Terminus berganti tiap 60 menit** (layanan gratis). Kalau putus:
-refresh halaman Summary → copy **URL TERBARU** di bagian paling bawah (`🔁 URL Terminus BARU`).
+⚠️ **URL Terminus berganti tiap ±60 menit** (layanan gratis). Kalau putus:
+buka **log job `ssh`** (klik job `ssh` di run) → tarik ke paling bawah →
+copy `TERMINUS=` / baris `🔁` **terbaru**.
 
 ---
 
@@ -47,7 +47,7 @@ refresh halaman Summary → copy **URL TERBARU** di bagian paling bawah (`🔁 U
 
 Di Summary yang sama ada juga link browser:
 ```
-Link: https://xxxx.trycloudflare.com
+Terminal web: https://xxxx.trycloudflare.com
 User: runzz01
 Pass: vpsXXXX-XXXX
 ```
@@ -89,16 +89,19 @@ npm install -g ts-node typescript
 ## FAQ
 
 **Q: Terminus connection failed?**
-A: Tunggu Summary muncul (~40 detik) dulu sebelum connect. Kalau tetep gagal: URL mungkin udah lewat 60 menit → refresh Summary, pakai URL terbaru. Alternatif: pakai link Browser.
+A: Tunggu Summary muncul (~1 menit) dulu sebelum connect. Kalau tetep gagal: URL mungkin udah lewat 60 menit → buka **log job `ssh`**, pakai `TERMINUS=` terbaru. Alternatif: link Browser (gak pernah putus).
+
+**Q: Summary kosong / belum muncul?**
+A: Job `display` masih jalan (±1 menit). Refresh. Kalau 5 menit tetep kosong: cancel → run lagi.
 
 **Q: Password-nya mana?**
-A: Di **Summary** run (bukan di log). Random tiap run.
+A: Di **Summary** run. Random tiap run.
 
 **Q: Bisa akses dari laptop?**
 A: Boleh. Host/port/user/password sama, masuk via SSH client biasa.
 
 **Q: Run-nya error?**
-A: Cek tab **Summary** — kalau kosong, cancel → run lagi.
+A: Cek job `ssh` di run itu — log-nya nunjukin step mana yang gagal.
 
 **Q: Gua mau setup sendiri di repo gua?**
 A: Fork → Settings → Secrets and variables → Actions → **New repository secret** → Name: `TS_AUTHKEY`, Value: authkey dari tailscale.com. Abis itu run → tailscale IP muncul di Summary (direct IP, tanpa tunnel).
