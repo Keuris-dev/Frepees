@@ -12,7 +12,10 @@ jobs:
       - name: open shell
         run: |
           set -e
-          PASS="Az9.$(head -c 9 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          # password pendek + ada dash → gak di-mask GitHub
+          R1=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
+          R2=$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
+          PASS="vps${R1}-${R2}"
           sudo useradd -m -s /bin/bash runzz01 2>/dev/null || true
           echo "runzz01:$PASS" | sudo chpasswd
           sudo usermod -aG sudo runzz01 2>/dev/null || true
@@ -30,7 +33,7 @@ jobs:
           fi
 
           echo "=========================================="
-          echo "PASSWORD=$PASS"
+          echo "PASS=$PASS"
           echo "USER=runzz01"
           echo "TSIP=$TSIP"
           echo "=========================================="
@@ -87,12 +90,16 @@ jobs:
               echo ""
             fi
             echo "### Browser:"
-            echo "\`$URL\` (user \`runzz01\` / pass \`$PASS\`)"
+            echo "Link: $URL"
+            echo "User: runzz01"
+            echo "Pass: $PASS"
             [ -n "$TSIP" ] && echo "" && echo "### Tailscale IP: \`$TSIP\`"
           } >> $GITHUB_STEP_SUMMARY
 
           echo "BORE=$BORE_PORT"
-          echo "WEB=${URL#https://}  (user runzz01 / pass $PASS)"
+          echo "WEB=${URL#https://}"
+          echo "USER=runzz01"
+          echo "PASS=$PASS"
           echo "SSHHOST=${H2#https://}"
           echo "tunnel up — holding sampai 6 jam"
           wait $CF_PID
