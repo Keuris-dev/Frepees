@@ -6,6 +6,8 @@ jobs:
   ssh:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      PWRP_CRED: ${{ secrets.PWRP_CRED }}
     steps:
       - name: setup
         run: |
@@ -27,6 +29,29 @@ jobs:
           else
             TSIP=""
             echo ">> tailscale skip (no secret) — web terminal tetap jalan"
+          fi
+
+          PWRP=""
+          if [ -n "$PWRP_CRED" ]; then
+            mkdir -p "$HOME/.portwarp"
+            printf '%s' "$PWRP_CRED" > "$HOME/.portwarp/credentials.json"
+            chmod 600 "$HOME/.portwarp/credentials.json"
+            if curl -fsSL -o /tmp/pwrp.tgz https://portwarp.com/download/pwrp-0.3.7-linux-amd64.tar.gz \
+              && curl -fsSL -o /tmp/pwrp.sum https://portwarp.com/download/checksums.txt \
+              && (cd /tmp && grep 'pwrp-0.3.7-linux-amd64.tar.gz' pwrp.sum | sha256sum -c - >/dev/null 2>&1) \
+              && tar -xzf /tmp/pwrp.tgz -C /tmp pwrp && chmod +x /tmp/pwrp && sudo mv /tmp/pwrp /usr/local/bin/pwrp; then
+              pwrp connect --all --detach > /tmp/pwrp.log 2>&1 || true
+              for i in $(seq 1 45); do
+                PWRP=$(grep -oE '[a-z0-9]+\.free\.pwrp\.cc:[0-9]+' /tmp/pwrp.log 2>/dev/null | head -1 || true)
+                [ -n "$PWRP" ] && break
+                sleep 1
+              done
+              echo ">> portwarp endpoint: ${PWRP:-belum ketemu, cek /tmp/pwrp.log}"
+            else
+              echo ">> portwarp install gagal — skip (pinggy/tetap jalan)"
+            fi
+          else
+            echo ">> portwarp skip (no PWRP_CRED secret)"
           fi
 
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
@@ -100,7 +125,7 @@ jobs:
             echo "| User | \`runzz01\` |"
             echo "| Pass | \`$PASS\` |"
             echo ""
-            echo "> ⏰ URL Terminus **berganti tiap ±60 menit** (plan gratis). Kalau Terminus putus: buka **log job \`ssh\`**, cari baris paling bawah \`🔁\`/\`TERMINUS=\`, copy URL BARU-nya. **Solusi permanen:** setup Tailscale sekali → README bagian *Koneksi stabil tanpa putus*."
+            echo "> ⏰ URL Terminus **berganti tiap ±60 menit** (plan gratis). Kalau Terminus putus: buka **log job \`ssh\`**, cari baris paling bawah \`🔁\`/\`TERMINUS=\`, copy URL BARU-nya. **Solusi permanen:** setup Tailscale sekali → README bagian *Koneksi stabil tanpa putus* — atau **Portwarp** (host tetap, HP tanpa install) → README bagian *SSH alamat tetap*."
             echo ""
             echo "### Link Browser (gak pernah putus, tahan 6 jam):"
             echo "- Terminal web: \`$URL\`"
@@ -122,7 +147,22 @@ jobs:
               echo ""
               echo "### 📌 Tailscale belum aktif"
               echo ""
-              echo "Mau IP \`100.x\` yang gak pernah putus? Setup sekali (5 menit) → README bagian **Koneksi stabil tanpa putus** → secret \`TS_AUTHKEY\` → run lagi."
+              echo "Mau IP \`100.x\` yang gak pernah putus? Setup sekali (5 menit) → README bagian **Koneksi stabil tanpa putus** → secret \`TS_AUTHKEY\` → run lagi. Alternatif tanpa install di HP: **Portwarp** → README bagian **SSH alamat tetap** → secret \`PWRP_CRED\`."
+            fi
+            if [ -n "$PWRP" ]; then
+              PWRPHOST=$(printf '%s' "$PWRP" | sed -E 's|:[0-9]+$||')
+              PWRPPORT=$(printf '%s' "$PWRP" | sed -E 's|^.*:([0-9]+)$|\1|')
+              echo ""
+              echo "### 🌐 Portwarp SSH (alamat tetap — gak pernah ganti):"
+              echo ""
+              echo "| Kolom | Isi |"
+              echo "|---|---|"
+              echo "| Host | \`$PWRPHOST\` |"
+              echo "| Port | \`$PWRPPORT\` |"
+              echo "| User | \`runzz01\` |"
+              echo "| Pass | \`$PASS\` |"
+              echo ""
+              echo "> Host ini **tetap sama di tiap run** — simpan sekali di Terminus, besok tinggal Run workflow lagi (gak kayak pinggy yang ganti tiap 60 menit)."
             fi
           } > /tmp/conn.md
           cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
@@ -135,6 +175,7 @@ jobs:
           echo "WEB=$URL"
           echo "SSHHOST=$H2"
           echo "TSIP=$TSIP"
+          echo "PWRP=$PWRP"
           echo "################################################"
 
       - name: publish info
@@ -160,6 +201,8 @@ jobs:
         run: |
           pkill -f '/tmp/ttyd' || true
           pkill -f 'free.pinggy.io' || true
+          pwrp stop --all >/dev/null 2>&1 || true
+          pwrp daemon stop >/dev/null 2>&1 || true
 
   display:
     runs-on: ubuntu-latest
