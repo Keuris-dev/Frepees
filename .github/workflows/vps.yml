@@ -44,13 +44,16 @@ jobs:
               && tar -xzf /tmp/pwrp.tgz -C /tmp pwrp && chmod +x /tmp/pwrp && sudo mv /tmp/pwrp /usr/local/bin/pwrp; then
               pd "🔐 portwarp: CLI installed"
               pwrp connect --all --detach > /tmp/pwrp.log 2>&1 || true
-              for i in $(seq 1 45); do
+              for i in $(seq 1 90); do
                 PWRP=$(grep -oE '[a-z0-9]+\.free\.pwrp\.cc:[0-9]+' /tmp/pwrp.log 2>/dev/null | head -1 || true)
+                if [ -z "$PWRP" ] && [ $((i % 5)) -eq 0 ]; then
+                  PWRP=$(pwrp tunnels 2>/dev/null | grep -oE '[a-z0-9]+\.free\.pwrp\.cc:[0-9]+' | head -1 || true)
+                fi
                 [ -n "$PWRP" ] && break
                 sleep 1
               done
               pd "🔐 portwarp endpoint: ${PWRP:-belum ketemu}"
-              pd "🔐 pwrp.log tail: $(tail -c 400 /tmp/pwrp.log 2>/dev/null | tr '\n' ' ')"
+              pd "🔐 pwrp.log tail: $(tail -c 500 /tmp/pwrp.log 2>/dev/null | tr '\n' ' ')"
             else
               pd "🔐 portwarp install gagal"
             fi
@@ -117,7 +120,6 @@ jobs:
             TPORT=$(printf '%s' "$TURL" | sed -E 's|^.*:([0-9]+)$|\1|')
           fi
 
-          { echo ""; echo "🔧 portwarp-debug:"; sed 's/^/  /' /tmp/pwrp_dbg.txt 2>/dev/null; } >> $GITHUB_STEP_SUMMARY
           {
             echo "## 🖥️ VPS Siap!"
             echo ""
@@ -170,6 +172,7 @@ jobs:
               echo "> Host ini **tetap sama di tiap run** — simpan sekali di Terminus, besok tinggal Run workflow lagi (gak kayak pinggy yang ganti tiap 60 menit)."
             fi
           } > /tmp/conn.md
+          { echo ""; echo "<details><summary>🔐 portwarp-debug</summary>"; echo ""; echo '```'; cat /tmp/pwrp_dbg.txt 2>/dev/null; echo "--- pwrp.log tail ---"; tail -40 /tmp/pwrp.log 2>/dev/null; echo '```'; echo "</details>"; } >> /tmp/conn.md
           cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
 
           if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] && [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
