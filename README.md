@@ -41,8 +41,9 @@ Buka **Terminus** → session baru → isi Host/Port/User/Pass dari Summary → 
 buka **log job `ssh`** (klik job `ssh` di run) → tarik ke paling bawah →
 copy `TERMINUS=` / baris `🔁` **terbaru**.
 
-…atau **skip masalah ini selamanya** → setup Tailscale sekali (bagian bawah) →
-IP `100.x` stabil, gak perlu ganti-ganti.
+…atau **skip masalah ini selamanya** → setup **Tailscale** sekali (bagian bawah) →
+IP `100.x` stabil — atau **Portwarp** → host `xxx.free.pwrp.cc` tetap, HP gak
+perlu install apa-apa.
 
 ---
 
@@ -84,6 +85,37 @@ Catatan:
 
 ---
 
+## SSH alamat tetap tanpa install apa-apa di HP (Portwarp) — setup sekali
+
+Alternatif Tailscale: **HP lo gak perlu install app apa pun.** Terminus langsung
+SSH ke host `xxxx.free.pwrp.cc:PORT` yang **gak pernah ganti** antar run (beda sama
+pinggy). Akun gratis, tanpa kartu kredit — limit: 1 tunnel, TCP beneran. Setup sekali:
+
+1. Daftar **https://portwarp.com/register** → login
+2. Tab **Tunnels → Create Tunnel** → Protocol **TCP** → Local port **22** → Create
+   → tunggu **±90 detik** (antrian akun gratis) → copy endpoint `xxxx.free.pwrp.cc:PORT`
+3. Install CLI di PC: `curl -fsSL https://portwarp.com/install | bash` (Linux/macOS;
+   Windows: [download ZIP](https://portwarp.com/downloads)) → jalankan `pwrp login`
+   → approve di browser
+4. Copy isi file `~/.portwarp/credentials.json`
+   (Windows: `C:\Users\NAMA\.portwarp\credentials.json`)
+5. Di fork lo: **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `PWRP_CRED`
+   - Value: isi file tadi (JSON utuh)
+6. **Run workflow** → Summary muncul baris **🌐 Portwarp SSH** → di Terminus isi
+   Host = `xxxx.free.pwrp.cc`, Port = `PORT`, User/Pass tetap
+
+Catatan:
+
+- Host+port **tetap sama di tiap run** — masuk sekali di Terminus, besok tinggal
+  klik Run workflow lagi (kredensial user/pass tetap, host juga tetap).
+- Fork gak bawa secret → tiap orang isi `PWRP_CRED` sendiri (akun masing-masing).
+- Endpoint baru muncul ±1-2 menit setelah run mulai.
+- **Tailscale** tetap lebih kuat buat uptime permanen (bisa diakses walau gak di-run);
+  Portwarp unggul di kemudahan — gak ada install apa-apa di HP. Mau dua-duanya juga boleh.
+
+---
+
 ## Tools yang udah terpasang
 
 - git, python3, node20, pip
@@ -118,7 +150,7 @@ npm install -g ts-node typescript
 ## FAQ
 
 **Q: Kenapa koneksi putus tiap ±1 jam?**
-A: Host pinggy berganti tiap ±60 menit (limit plan gratis). Solusi permanen: setup **Tailscale** sekali → bagian **"Koneksi stabil tanpa putus"** di atas → IP `100.x` gak pernah ganti. Males setup? pakai link Browser (juga gak pernah putus).
+A: Host pinggy berganti tiap ±60 menit (limit plan gratis). Solusi permanen: setup **Tailscale** sekali → bagian **"Koneksi stabil tanpa putus"** di atas → IP `100.x` gak pernah ganti. Alternatif tanpa install app di HP: **Portwarp** → bagian **"SSH alamat tetap"** → host `xxxx.free.pwrp.cc` tetap tiap run. Males semua? pakai link Browser (juga gak pernah putus).
 
 **Q: Terminus connection failed?**
 A: Tunggu Summary muncul (~1 menit) dulu sebelum connect. Kalau tetep gagal: URL mungkin udah lewat 60 menit → buka **log job `ssh`**, pakai `TERMINUS=` terbaru. Alternatif: link Browser (gak pernah putus).
