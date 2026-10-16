@@ -167,6 +167,12 @@ jobs:
           } > /tmp/conn.md
           cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
 
+          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] && [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
+            curl -fsS -m 25 -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -F text="$(cat /tmp/conn.md)" || echo ">> kirim ke Telegram gagal"
+          fi
+
           echo "################################################"
           echo "# VPS SIAP — SALIN DARI SINI"
           echo "USER=runzz01"
