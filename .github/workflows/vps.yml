@@ -32,7 +32,9 @@ jobs:
           fi
 
           PWRP=""
+          pd() { echo "$@" | tee -a /tmp/pwrp_dbg.txt; }
           if [ -n "$PWRP_CRED" ]; then
+            pd "🔐 portwarp: cred detected (len=${#PWRP_CRED})"
             mkdir -p "$HOME/.portwarp"
             printf '%s' "$PWRP_CRED" > "$HOME/.portwarp/credentials.json"
             chmod 600 "$HOME/.portwarp/credentials.json"
@@ -40,18 +42,20 @@ jobs:
               && curl -fsSL -o /tmp/pwrp.sum https://portwarp.com/download/checksums.txt \
               && (cd /tmp && grep 'pwrp-0.3.7-linux-amd64.tar.gz' pwrp.sum | sha256sum -c - >/dev/null 2>&1) \
               && tar -xzf /tmp/pwrp.tgz -C /tmp pwrp && chmod +x /tmp/pwrp && sudo mv /tmp/pwrp /usr/local/bin/pwrp; then
+              pd "🔐 portwarp: CLI installed"
               pwrp connect --all --detach > /tmp/pwrp.log 2>&1 || true
               for i in $(seq 1 45); do
                 PWRP=$(grep -oE '[a-z0-9]+\.free\.pwrp\.cc:[0-9]+' /tmp/pwrp.log 2>/dev/null | head -1 || true)
                 [ -n "$PWRP" ] && break
                 sleep 1
               done
-              echo ">> portwarp endpoint: ${PWRP:-belum ketemu, cek /tmp/pwrp.log}"
+              pd "🔐 portwarp endpoint: ${PWRP:-belum ketemu}"
+              pd "🔐 pwrp.log tail: $(tail -c 400 /tmp/pwrp.log 2>/dev/null | tr '\n' ' ')"
             else
-              echo ">> portwarp install gagal — skip (pinggy/tetap jalan)"
+              pd "🔐 portwarp install gagal"
             fi
           else
-            echo ">> portwarp skip (no PWRP_CRED secret)"
+            pd "🔐 portwarp skip (no PWRP_CRED secret)"
           fi
 
           curl -fsSL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
@@ -113,6 +117,7 @@ jobs:
             TPORT=$(printf '%s' "$TURL" | sed -E 's|^.*:([0-9]+)$|\1|')
           fi
 
+          { echo ""; echo "🔧 portwarp-debug:"; sed 's/^/  /' /tmp/pwrp_dbg.txt 2>/dev/null; } >> $GITHUB_STEP_SUMMARY
           {
             echo "## 🖥️ VPS Siap!"
             echo ""
