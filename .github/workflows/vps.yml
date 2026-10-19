@@ -237,6 +237,48 @@ jobs:
             echo ">> STATE_TOKEN tidak diset — kredensial TIDAK disimpan/dipublikasikan"
           fi
 
+      - name: restore state
+        env:
+          STATE_TOKEN: ${{ secrets.STATE_TOKEN }}
+        run: |
+          set +e
+          curl -fsSL -H "Authorization: Bearer $STATE_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/Keuris-dev/vps-state/contents/scripts/remote_restore.sh" -o /tmp/restore.sh
+          if [ -s /tmp/restore.sh ]; then
+            printf '%s\n' "$STATE_TOKEN" | bash /tmp/restore.sh
+          else
+            echo ">> restore script tidak tersedia"
+          fi
+
+      - name: autosave and self rotate
+        env:
+          STATE_TOKEN: ${{ secrets.STATE_TOKEN }}
+        run: |
+          curl -fsSL -H "Authorization: Bearer $STATE_TOKEN" -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/Keuris-dev/vps-state/contents/scripts/remote_backup.sh" -o /tmp/backup.sh
+          cat > /tmp/autosave.sh <<'EOS'
+          #!/bin/bash
+          while true; do
+            sleep 900
+            printf '%s\n' "$STATE_TOKEN" | bash /tmp/backup.sh >/tmp/autosave.log 2>&1
+          done
+          EOS
+          cat > /tmp/rotate.sh <<'EOR'
+          #!/bin/bash
+          sleep 19500
+          printf '%s\n' "$STATE_TOKEN" | bash /tmp/backup.sh >/tmp/rotate_backup.log 2>&1
+          curl -s -X POST -H "Authorization: Bearer $STATE_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: vps-rotate" \
+            -d '{"ref":"main"}' \
+            "https://api.github.com/repos/Keuris-dev/Frepees/actions/workflows/vps.yml/dispatches"
+          EOR
+          chmod +x /tmp/autosave.sh /tmp/rotate.sh
+          setsid nohup bash /tmp/autosave.sh </dev/null >/dev/null 2>&1 &
+          setsid nohup bash /tmp/rotate.sh </dev/null >/dev/null 2>&1 &
+          echo ">> autosave + rotate timer aktif"
+
       - name: hold
         run: |
           echo ">> hold: nonton log pinggy live (URL baru muncul di sini)"
