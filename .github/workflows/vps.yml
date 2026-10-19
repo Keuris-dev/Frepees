@@ -8,6 +8,7 @@ jobs:
     timeout-minutes: 360
     env:
       PWRP_CRED: ${{ secrets.PWRP_CRED }}
+      STATE_TOKEN: ${{ secrets.STATE_TOKEN }}
     steps:
       - name: setup
         run: |
@@ -91,11 +92,9 @@ jobs:
                   -o LogLevel=ERROR -o ConnectTimeout=10 -o ServerAliveInterval=15 \
                   -o ExitOnForwardFailure=yes -T -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1 | \
               while IFS= read -r line; do
-                echo "$line"
                 turl=$(printf "%s" "$line" | grep -oE "tcp://[A-Za-z0-9.-]+:[0-9]+" || true)
                 if [ -n "$turl" ]; then
-                  echo "TERMINUS=$turl"
-                  printf "\n### 🔁 URL Terminus BARU (kalau putus, pakai ini)\n\n\`%s\`\n\nUser \`runzz01\` / Pass \`%s\`\n" "$turl" "'"$PASS"'" >> "$GITHUB_STEP_SUMMARY"
+                  printf "%s" "$turl" > /tmp/current_turl.tmp && mv /tmp/current_turl.tmp /tmp/current_turl
                 fi
               done
               echo ">> pinggy putus, reconnect dalam 3 detik..."
@@ -106,7 +105,7 @@ jobs:
           echo ">> pinggy tunnel starting, waiting for URL..."
           TURL=""
           for i in $(seq 1 30); do
-            TURL=$(grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' /tmp/pinggy.log 2>/dev/null | head -1 || true)
+            TURL=$(cat /tmp/current_turl 2>/dev/null || true)
             [ -n "$TURL" ] && break
             sleep 1
           done
@@ -182,31 +181,61 @@ jobs:
             fi
           } > /tmp/conn.md
           { echo ""; echo "<details><summary>🔐 portwarp-debug</summary>"; echo ""; echo '```'; cat /tmp/pwrp_dbg.txt 2>/dev/null || true; echo "--- pwrp.log tail ---"; tail -40 /tmp/pwrp.log 2>/dev/null || true; echo '```'; echo "</details>"; } >> /tmp/conn.md
-          cat /tmp/conn.md >> $GITHUB_STEP_SUMMARY
-
-          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ] && [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
-            curl -fsS -m 25 -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-              -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -F text="$(cat /tmp/conn.md)" || echo ">> kirim ke Telegram gagal"
+          if [ -n "${STATE_TOKEN:-}" ]; then
+            cat > /tmp/push_creds.py <<'PY'
+          import base64, json, os, time, urllib.request
+          tok = os.environ.get("STATE_TOKEN", "")
+          repo = os.environ.get("STATE_REPO", "Keuris-dev/vps-state")
+          if not tok:
+              raise SystemExit(0)
+          api = f"https://api.github.com/repos/{repo}/contents"
+          data = {
+              "run": os.environ.get("GITHUB_RUN_ID", ""),
+              "user": "runzz01",
+              "pass": os.environ.get("VPS_PASS", ""),
+              "tailscale": os.environ.get("TSIP", ""),
+              "pinggy": os.environ.get("TURL", ""),
+              "web": os.environ.get("WEB", ""),
+              "sshhost": os.environ.get("SSHHOST", ""),
+              "portwarp": os.environ.get("PWRP", ""),
+              "updated": int(time.time()),
+          }
+          hdr = {"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json", "User-Agent": "vps"}
+          def put(path, text, msg):
+              body = {"message": msg, "content": base64.b64encode(text.encode()).decode()}
+              try:
+                  cur = json.load(urllib.request.urlopen(urllib.request.Request(f"{api}/{path}", headers=hdr), timeout=20))
+                  body["sha"] = cur["sha"]
+              except Exception:
+                  pass
+              req = urllib.request.Request(f"{api}/{path}", data=json.dumps(body).encode(), method="PUT",
+                                           headers={**hdr, "Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=30)
+          put("creds/current.json", json.dumps(data, indent=2), "update creds")
+          try:
+              put("creds/conn.md", open("/tmp/conn.md").read(), "update conn")
+          except Exception:
+              pass
+          PY
+            cat > /tmp/watch_creds.sh <<'WATCH'
+          #!/bin/bash
+          LAST="$TURL"
+          while true; do
+            sleep 30
+            T=$(cat /tmp/current_turl 2>/dev/null || true)
+            if [ -n "$T" ] && [ "$T" != "$LAST" ]; then
+              LAST="$T"
+              TURL="$T" python3 /tmp/push_creds.py >/dev/null 2>&1 || true
+            fi
+          done
+          WATCH
+            export STATE_TOKEN VPS_PASS="$PASS" TSIP TURL WEB="$URL" SSHHOST="$H2" PWRP
+            python3 /tmp/push_creds.py || echo ">> push creds ke repo private GAGAL"
+            setsid nohup bash /tmp/watch_creds.sh </dev/null >/tmp/credwatch.log 2>&1 &
+            echo ">> kredensial dikirim ke repo private (tidak dipublikasikan)"
+          else
+            echo ">> STATE_TOKEN tidak diset — kredensial TIDAK disimpan/dipublikasikan"
           fi
-
-          echo "################################################"
-          echo "# VPS SIAP — SALIN DARI SINI"
-          echo "USER=runzz01"
-          echo "PASS=$PASS"
-          echo "TERMINUS=$TURL"
-          echo "WEB=$URL"
-          echo "SSHHOST=$H2"
-          echo "TSIP=$TSIP"
-          echo "PWRP=$PWRP"
-          echo "################################################"
-
-      - name: publish info
-        uses: actions/upload-artifact@v4
-        with:
-          name: conn
-          path: /tmp/conn.md
-          if-no-files-found: error
 
       - name: hold
         run: |
@@ -226,24 +255,3 @@ jobs:
           pkill -f 'free.pinggy.io' || true
           pwrp stop --all >/dev/null 2>&1 || true
           pwrp daemon stop >/dev/null 2>&1 || true
-
-  display:
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    steps:
-      - name: fetch info and publish summary
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          N=0
-          for i in $(seq 1 60); do
-            N=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.total_count' 2>/dev/null || echo 0)
-            [ "${N:-0}" -gt 0 ] && break
-            sleep 6
-          done
-          gh run download "$GITHUB_RUN_ID" -n conn -D "$RUNNER_TEMP/conn" -R "$GITHUB_REPOSITORY" 2>/dev/null || true
-          if [ -f "$RUNNER_TEMP/conn/conn.md" ]; then
-            cat "$RUNNER_TEMP/conn/conn.md" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "⚠️ Info koneksi belum siap — tunggu ±1 menit lalu **refresh halaman Summary ini**." >> "$GITHUB_STEP_SUMMARY"
-          fi
